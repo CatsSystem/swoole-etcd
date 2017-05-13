@@ -1,0 +1,23 @@
+{
+    "name": "cat-sys/swoole-etcd",
+    "description": "PHP Etcd v3 Client base on Swoole Http 2.0",
+    "authors": [
+        {
+            "name": "lidanyang",
+            "email": "lancelot2014@foxmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.5",
+        "ext-swoole": ">=1.9.9",
+        "google/protobuf": "^3.3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "etcd\\":"etcd/"
+        },
+        "classmap": [
+            "proto"
+        ]
+    }
+}
