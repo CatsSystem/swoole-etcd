@@ -44,7 +44,6 @@ $client->Range($request)->wait(function($result){
     }
 });
 
-sleep(1);
 $watch_client = new WatchClient('127.0.0.1:2379', []);
 $call = $watch_client->Watch();
 
@@ -52,8 +51,12 @@ $request = new \Etcdserverpb\WatchRequest();
 $create = new \Etcdserverpb\WatchCreateRequest();
 $create->setKey("Hello");
 $request->setCreateRequest($create);
-$call->waiting(function($result){
+$call->waiting(function($result) use ($call){
     list($response, $status) = $result;
+    if($response->getCreated() || $response->getCanceled())
+    {
+        return;
+    }
     foreach ($response->getEvents() as $event)
     {
         $type = $event->getType();
@@ -63,14 +66,15 @@ $call->waiting(function($result){
             {
                 $kv = $event->getKv();
                 echo sprintf("Put key[%s] = %s\n",  $kv->getKey(), $kv->getValue());
+
                 break;
             }
             case 1:
             {
-                var_dump("delete");
                 break;
             }
         }
     }
+    $call->close();
 });
 $call->push($request);

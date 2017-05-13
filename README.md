@@ -29,6 +29,8 @@ $client->Put($request)->wait(function($result){
 
 在Etcd中，可以通过一个Watch命令来建立与服务器的双工通信。
 
+> 使用Watch功能，需要Swoole版本不低于 1.9.11
+
 ```php
 // 连接到etcd服务器
 $watch_client = new WatchClient('127.0.0.1:2379', []);
@@ -37,8 +39,13 @@ $watch_client = new WatchClient('127.0.0.1:2379', []);
 $call = $watch_client->Watch();
 
 // 设置回调函数，用于监听来自etcd服务的主动推送
-$call->waiting(function($result){
+$call->waiting(function($result) use ($call){
     list($response, $status) = $result;
+    // 监听成功或取消监听成功的响应
+    if($response->getCreated() || $response->getCanceled())
+    {
+        return;
+    }
     // 循环处理监听到的事件
     foreach ($response->getEvents() as $event)
     {
@@ -58,6 +65,8 @@ $call->waiting(function($result){
             }
         }
     }
+    // 断开监听
+    $call->close();
 });
 
 // 构建一个WatchRequst请求，请求监听Key值"Hello"的事件
@@ -72,6 +81,16 @@ $call->push($request);
 
 # Install
 
+## 安装Swoole扩展
+
+需要开启Swoole扩展的http2和openssl支持
+
+```bash
+./configure --enable-async-redis --enable-http2 --enable-openssl
+make clean && make && make install
+```
+
+## 引入库
 composer.json
 
 ```json
