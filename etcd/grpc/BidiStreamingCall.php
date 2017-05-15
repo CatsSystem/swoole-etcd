@@ -11,17 +11,6 @@ namespace etcd\grpc;
 class BidiStreamingCall extends Call
 {
     /**
-     * @var \swoole_http2_client
-     */
-    protected $client;
-
-    public function __construct(&$client, $deserialize)
-    {
-        parent::__construct($deserialize);
-        $this->client = $client;
-    }
-
-    /**
      * @param $argument
      * @throws \Exception
      */

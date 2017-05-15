@@ -10,17 +10,6 @@ namespace etcd\grpc;
 
 class ServerStreamingCall extends Call
 {
-    /**
-     * @var \swoole_http2_client
-     */
-    protected $client;
-
-    public function __construct(&$client, $deserialize)
-    {
-        parent::__construct($deserialize);
-        $this->client = $client;
-    }
-
     public function onReceive($response)
     {
         if($response->body){

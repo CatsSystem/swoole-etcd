@@ -24,6 +24,13 @@ class BaseStub
         $this->host = $hostname[0];
         $this->port = $hostname[1];
         $this->client = new \swoole_http2_client($this->host, $this->port, false);
+        $this->client->closed = false;
+        $this->client->on("Close", function(){
+            $this->client->closed = true;
+        });
+        $this->client->on("Error", function(){
+            $this->client->closed = true;
+        });
     }
 
     /**
@@ -45,9 +52,9 @@ class BaseStub
                                       array $metadata = [],
                                       array $options = [])
     {
+        $call = new UnaryCall($this->client, $deserialize);
         $msg = $argument->serializeToString();
         $data = pack('CN', 0, strlen($msg)) . $msg;
-        $call = new UnaryCall($deserialize);
         $this->client->post($method, $data, [$call, 'onReceive']);
         return $call;
     }

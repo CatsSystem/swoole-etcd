@@ -19,12 +19,19 @@ class Call
     protected $stream_id;
 
     /**
-     * Call constructor.
-     * @param $deserialize
+     * @var \swoole_http2_client
      */
-    public function __construct($deserialize)
+    protected $client;
+
+    /**
+     * Call constructor.
+     * @param \swoole_http2_client $client
+     * @param mixed $deserialize
+     */
+    public function __construct(&$client, $deserialize)
     {
         $this->deserialize = $deserialize;
+        $this->client = $client;
     }
 
     /**
