@@ -17,7 +17,15 @@ class BaseStub
 
     private $client;
 
-    public function __construct($hostname, $opts, $channel = null)
+    private $callback;
+
+    /**
+     * BaseStub constructor.
+     * @param $hostname
+     * @param $opts
+     * @param callable $callback
+     */
+    public function __construct($hostname, $opts, $callback)
     {
         $this->hostname = $hostname;
         $hostname = explode(":", $hostname);
@@ -25,12 +33,24 @@ class BaseStub
         $this->port = $hostname[1];
         $this->client = new \swoole_http2_client($this->host, $this->port, false);
         $this->client->closed = false;
-        $this->client->on("Close", function(){
-            $this->client->closed = true;
-        });
-        $this->client->on("Error", function(){
-            $this->client->closed = true;
-        });
+
+        $this->callback = $callback;
+
+        if($this->callback)
+        {
+            $this->client->on("Close", $callback);
+            $this->client->on("Error", $callback);
+        }
+        else
+        {
+            $this->client->on("Close", function(){
+                $this->client->closed = true;
+            });
+            $this->client->on("Error", function(){
+                $this->client->closed = true;
+            });
+        }
+
     }
 
     /**
@@ -44,7 +64,7 @@ class BaseStub
      *                              (optional)
      * @param array    $options     An array of options (optional)
      *
-     * @return UnaryCall The active call object
+     * @return bool|UnaryCall
      */
     protected function _simpleRequest($method,
                                       $argument,
@@ -55,7 +75,10 @@ class BaseStub
         $call = new UnaryCall($this->client, $deserialize);
         $msg = $argument->serializeToString();
         $data = pack('CN', 0, strlen($msg)) . $msg;
-        $this->client->post($method, $data, [$call, 'onReceive']);
+        if(!$this->client->post($method, $data, [$call, 'onReceive']))
+        {
+            return false;
+        }
         return $call;
     }
 
@@ -95,7 +118,7 @@ class BaseStub
      * @param array $metadata A metadata map to send to the server
      *                              (optional)
      * @param array $options An array of options (optional)
-     * @return BidiStreamingCall The active call object
+     * @return bool|BidiStreamingCall
      */
     protected function _bidiRequest($method,
                                     $deserialize,
@@ -104,6 +127,10 @@ class BaseStub
     {
         $call = new BidiStreamingCall($this->client, $deserialize);
         $stream_id = $this->client->openStream($method, [$call, "onReceive"]);
+        if(!$stream_id)
+        {
+            return false;
+        }
         $call->setStreamId($stream_id);
         return $call;
     }

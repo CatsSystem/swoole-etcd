@@ -52,7 +52,18 @@ class Call
             {
                 call_user_func($this->callback, $this->result);
             }
+        } else {
+            $this->result = [null, $response->statusCode];
+            if(is_callable($this->callback))
+            {
+                call_user_func($this->callback, $this->result);
+            }
         }
+    }
+
+    public function isClose()
+    {
+        return $this->client->closed;
     }
 
     protected function _serializeMessage($data)
