@@ -17,40 +17,31 @@ class BaseStub
 
     private $client;
 
-    private $callback;
-
     /**
      * BaseStub constructor.
      * @param $hostname
      * @param $opts
-     * @param callable $callback
+     * @param $channel
      */
-    public function __construct($hostname, $opts, $callback)
+    public function __construct($hostname, $opts, $channel)
     {
         $this->hostname = $hostname;
         $hostname = explode(":", $hostname);
         $this->host = $hostname[0];
         $this->port = $hostname[1];
-        $this->client = new \swoole_http2_client($this->host, $this->port, false);
-        $this->client->closed = false;
+        $this->client = new \http2_client($this->host, $this->port, false);
+    }
 
-        $this->callback = $callback;
+    public function connect($timeout, $callback)
+    {
+        $this->client->connect($timeout, function($client, $errCode) use ($callback) {
+            call_user_func($callback, $this, $errCode);
+        });
+    }
 
-        if($this->callback)
-        {
-            $this->client->on("Close", $callback);
-            $this->client->on("Error", $callback);
-        }
-        else
-        {
-            $this->client->on("Close", function(){
-                $this->client->closed = true;
-            });
-            $this->client->on("Error", function(){
-                $this->client->closed = true;
-            });
-        }
-
+    public function close()
+    {
+        $this->client->close();
     }
 
     /**
@@ -72,10 +63,10 @@ class BaseStub
                                       array $metadata = [],
                                       array $options = [])
     {
-        $call = new UnaryCall($this->client, $deserialize);
+        $call = new UnaryCall($deserialize);
         $msg = $argument->serializeToString();
         $data = pack('CN', 0, strlen($msg)) . $msg;
-        if(!$this->client->post($method, $data, [$call, 'onReceive']))
+        if(!$this->client->post($method, $data, 3, [$call, 'onReceive']))
         {
             return false;
         }
@@ -101,12 +92,12 @@ class BaseStub
                                             array $metadata = [],
                                             array $options = [])
     {
-        $call = new ServerStreamingCall($this->client, $deserialize);
+        $call = new ServerStreamingCall($deserialize);
         $msg = $argument->serializeToString();
-        $stream_id = $this->client->openStream($method, [$call, "onReceive"]);
-        $call->setStreamId($stream_id);
+        $stream = $this->client->openStream($method);
+        $call->setStream($stream);
         $data = pack('CN', 0, strlen($msg)) . $msg;
-        $this->client->push($stream_id, $data);
+        $stream->push($data);
         return $call;
     }
 
@@ -125,13 +116,13 @@ class BaseStub
                                     array $metadata = [],
                                     array $options = [])
     {
-        $call = new BidiStreamingCall($this->client, $deserialize);
-        $stream_id = $this->client->openStream($method, [$call, "onReceive"]);
-        if(!$stream_id)
+        $call = new BidiStreamingCall($deserialize);
+        $stream = $this->client->openStream($method);
+        if(!$stream)
         {
             return false;
         }
-        $call->setStreamId($stream_id);
+        $call->setStream($stream);
         return $call;
     }
 }

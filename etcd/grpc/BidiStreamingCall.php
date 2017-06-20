@@ -22,7 +22,7 @@ class BidiStreamingCall extends Call
         }
         $msg = $this->_serializeMessage($argument);
         $data = pack('CN', 0, strlen($msg)) . $msg;
-        $this->client->push($this->stream_id, $data);
+        $this->stream->push($data);
     }
 
     /**
@@ -40,6 +40,6 @@ class BidiStreamingCall extends Call
 
     public function close()
     {
-        $this->client->closeStream($this->stream_id);
+        $this->stream->close();
     }
 }

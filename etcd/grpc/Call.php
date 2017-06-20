@@ -16,54 +16,50 @@ class Call
 
     protected $result = null;
 
-    protected $stream_id;
-
     /**
-     * @var \swoole_http2_client
+     * @var \http2_client_stream
      */
-    protected $client;
+    protected $stream = null;
 
     /**
      * Call constructor.
-     * @param \swoole_http2_client $client
      * @param mixed $deserialize
      */
-    public function __construct(&$client, $deserialize)
+    public function __construct($deserialize)
     {
         $this->deserialize = $deserialize;
-        $this->client = $client;
     }
 
     /**
-     * @param mixed $stream_id
+     * @param param \http2_client_stream $stream
      */
-    public function setStreamId($stream_id)
+    public function setStream($stream)
     {
-        $this->stream_id = $stream_id;
+        $this->stream = $stream;
+        $this->stream->onResult([$this, "onReceive"]);
     }
 
 
-    public function onReceive($response)
+    public function onReceive($client, $response)
     {
+        if($response->status == HTTP2_CLIENT_RST_STREAM && $this->stream)
+        {
+            $this->stream->close();
+        }
         if($response->body){
             $data = substr($response->body, 5);
-            $this->result = [$this->_deserializeResponse($data), $response->statusCode];
+            $this->result = [$this->_deserializeResponse($data), $response->status];
             if(is_callable($this->callback))
             {
                 call_user_func($this->callback, $this->result);
             }
         } else {
-            $this->result = [null, $response->statusCode];
+            $this->result = [null, $response->status];
             if(is_callable($this->callback))
             {
                 call_user_func($this->callback, $this->result);
             }
         }
-    }
-
-    public function isClose()
-    {
-        return $this->client->closed;
     }
 
     protected function _serializeMessage($data)

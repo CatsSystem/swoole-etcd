@@ -6,21 +6,36 @@ PHP Etcd v3 Client base on Swoole Http2 Client
 ## 发起一个普通请求
 ```php
 // 连接到etcd服务器
-$client = new KVClient('127.0.0.1:2379', []);
-
-// 创建一个Put请求
-$request = new PutRequest();
-$request->setKey("Hello");
-$request->setValue("test");
-$request->setPrevKv(true);
-
-// 发起请求，并在回调函数中获取返回值
-$client->Put($request)->wait(function($result){
-    list($reply, $status) = $result;
-    if($reply instanceof \Etcdserverpb\PutResponse)
+$client = new KVClient('127.0.0.1:2379', [], function(){
+    echo "client closed\n";
+});
+$client->connect(3, function($cli, $errCode) use ($client) {
+    if($errCode != 0)
     {
-        $item = $reply->getPrevKv();
-        echo sprintf("update key[%s] success, pre value = %s\n", $item->getKey(), $item->getValue());
+        return;
+    }
+    $request = new PutRequest();
+    $request->setKey("Hello");
+    $request->setValue("test");
+    $request->setPrevKv(true);
+    $call = $client->Put($request);
+    if($call)
+    {
+        $call->wait(function($result) use ($client){
+            list($reply, $status) = $result;
+            if($status != 200)
+            {
+                var_dump("Error");
+                return;
+            }
+            if($reply instanceof \Etcdserverpb\PutResponse)
+            {
+                $item = $reply->getPrevKv();
+                echo sprintf("update key[%s] success, pre value = %s\n", $item->getKey(), $item->getValue());
+            }
+        });
+    } else {
+        echo "request failed! Client closed\n";
     }
 });
 ```
@@ -29,66 +44,56 @@ $client->Put($request)->wait(function($result){
 
 在Etcd中，可以通过一个Watch命令来建立与服务器的双工通信。
 
-> 使用Watch功能，需要Swoole版本不低于 1.9.11
-
 ```php
 // 连接到etcd服务器
 $watch_client = new WatchClient('127.0.0.1:2379', []);
-
-// 发起一个Watch请求并获取到处理句柄
-$call = $watch_client->Watch();
-
-// 设置回调函数，用于监听来自etcd服务的主动推送
-$call->waiting(function($result) use ($call){
-    list($response, $status) = $result;
-    // 监听成功或取消监听成功的响应
-    if($response->getCreated() || $response->getCanceled())
+$watch_client->connect(3, function(WatchClient $client, $errCode) {
+    if($errCode != 0)
     {
         return;
     }
-    // 循环处理监听到的事件
-    foreach ($response->getEvents() as $event)
-    {
-        $type = $event->getType();
-        switch($type)
+    $call = $client->Watch();
+    $call->waiting(function($result) use ($call, $client){
+        list($response, $status) = $result;
+        if($response->getCreated() || $response->getCanceled())
         {
-            case 0:
+            return;
+        }
+        foreach ($response->getEvents() as $event)
+        {
+            $type = $event->getType();
+            switch($type)
             {
-                $kv = $event->getKv();
-                echo sprintf("Put key[%s] = %s\n",  $kv->getKey(), $kv->getValue());
-                break;
-            }
-            case 1:
-            {
-                var_dump("delete");
-                break;
+                case 0:
+                {
+                    $kv = $event->getKv();
+                    echo sprintf("Put key[%s] = %s\n",  $kv->getKey(), $kv->getValue());
+
+                    break;
+                }
+                case 1:
+                {
+                    break;
+                }
             }
         }
-    }
-    // 断开监听
-    $call->close();
+        $call->close();
+    });
+    $request = new \Etcdserverpb\WatchRequest();
+    $create = new \Etcdserverpb\WatchCreateRequest();
+    $create->setKey("Hello");
+    $request->setCreateRequest($create);
+    $call->push($request);
 });
 
-// 构建一个WatchRequst请求，请求监听Key值"Hello"的事件
-$request = new \Etcdserverpb\WatchRequest();
-$create = new \Etcdserverpb\WatchCreateRequest();
-$create->setKey("Hello");
-$request->setCreateRequest($create);
-// 发送请求（发送请求前必须调用 waiting 函数）
-$call->push($request);
-
 ```
 
-# Install
+# 依赖
 
-## 安装Swoole扩展
+* [Swoole扩展](https://github.com/swoole/swoole-src) 1.9.12 +
+* [PHP-X](https://github.com/swoole/PHP-X) Latest Version
+* [Http2 Client Extension](https://github.com/CatsSystem/swoole-extension) Latest Version
 
-需要开启Swoole扩展的http2和openssl支持
-
-```bash
-./configure --enable-async-redis --enable-http2 --enable-openssl
-make clean && make && make install
-```
 
 ## 引入库
 composer.json
@@ -97,7 +102,7 @@ composer.json
 
 {
     "require": {
-        "cat-sys/swoole-etcd": "^0.1.0"
+        "cat-sys/swoole-etcd": "dev-master"
     }
 }
 
