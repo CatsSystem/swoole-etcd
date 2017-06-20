@@ -6,9 +6,7 @@ PHP Etcd v3 Client base on Swoole Http2 Client
 ## 发起一个普通请求
 ```php
 // 连接到etcd服务器
-$client = new KVClient('127.0.0.1:2379', [], function(){
-    echo "client closed\n";
-});
+$client = new KVClient('127.0.0.1:2379', []);
 $client->connect(3, function($cli, $errCode) use ($client) {
     if($errCode != 0)
     {
